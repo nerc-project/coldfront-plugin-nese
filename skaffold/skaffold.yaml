@@ -1,0 +1,24 @@
+---
+apiVersion: skaffold/v2beta26
+kind: Config
+metadata:
+  name: coldfront-plugin-osn
+build:
+  tagPolicy:
+    sha256: {}
+  artifacts:
+    - image: culbert/coldfront-nerc
+      context: ../..
+      docker:
+        dockerfile: coldfront-plugin-osn/skaffold/Dockerfile
+      sync:
+        manual:
+          - src: "coldfront-plugin-osn/src/**"
+            dest: "/code"
+            strip: "coldfront-plugin-osn/src/"
+
+deploy:
+  kustomize:
+    paths:
+      - .
+  kubeContext: minikube

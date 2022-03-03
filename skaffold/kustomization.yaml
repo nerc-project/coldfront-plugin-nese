@@ -1,0 +1,93 @@
+---
+namespace: coldfront
+
+resources:
+  - ../../coldfront-nerc/k8s/overlays/prod
+  - ./nese_secrets.yaml
+
+patches:
+
+  # Debug environment stuff
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coldfront-configmap
+      data:
+        DEBUG: "True"
+        PYTHONUNBUFFERED: "1"
+        PYTHONPATH: "/code:/plugins"
+#        INITIAL_SETUP: "True"  
+
+  # Switch to dev image
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: coldfront-deployment
+      spec:
+        template:
+          spec:
+            containers:
+              - name: coldfront
+                image: culbert/coldfront-nerc:latest
+                imagePullPolicy: Never
+                envFrom:
+                - configMapRef:
+                    name: coldfront-configmap
+                - secretRef:
+                    name: coldfront-plugin-nese
+                - secretRef:
+                    name: coldfront-secrets
+
+  # switch to dev image and new runscript w/qcluster arg
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: coldfront-qcluster-deployment
+      spec:
+        template:
+          spec:
+            containers:
+              - name: coldfront-qcluster
+                image: culbert/coldfront-nerc:latest
+                imagePullPolicy: Never
+                command: ["run_coldfront.sh"]
+                args: ["qcluster"]
+                envFrom:
+                - configMapRef:
+                    name: coldfront-configmap
+                - secretRef:
+                    name: coldfront-plugin-nese
+                - secretRef:
+                   name: coldfront-secrets
+
+  # Turn off scheduled  backups
+  - patch: |-
+      apiVersion: postgres-operator.crunchydata.com/v1beta1
+      kind: PostgresCluster
+      metadata:
+        name: doesnotmatter
+      spec:
+        backups:
+          pgbackrest:
+            image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:centos8-2.35-0
+            global:
+              repo1-retention-full: "1"
+              repo1-retention-full-type: count
+            manual:
+              repoName: repo1
+              options:
+              - --type=full
+            repos:
+            - name: repo1
+              volume:
+                volumeClaimSpec:
+                  accessModes:
+                  - "ReadWriteOnce"
+                  resources:
+                    requests:
+                      storage: 5Gi
+    target:
+      name: .*-postgres-ha
