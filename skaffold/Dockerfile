@@ -17,9 +17,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # change here...
 COPY coldfront-nerc/requirements.txt /tmp/requirements.txt
-COPY coldfront-plugin-osn/requirements.txt /tmp/osnrequirements.txt
+COPY coldfront-plugin-nese/requirements.txt /tmp/neserequirements.txt
 RUN pip3 install -r /tmp/requirements.txt
-RUN pip3 install -r /tmp/osnrequirements.txt
+RUN pip3 install -r /tmp/neserequirements.txt
 
 FROM minio/mc:RELEASE.2022-02-16T05-54-01Z as minio
 
@@ -36,14 +36,14 @@ COPY --from=minio /usr/bin/mc /usr/bin/mc
 COPY --from=minio /licenses/CREDITS /licenses/CREDITS
 COPY --from=minio /licenses/LICENSE /licenses/LICENSE
 
-# # changed for osn plugin
-COPY coldfront-plugin-osn/skaffold/local_settings.py /opt/venv/lib/python3.9/site-packages
-COPY coldfront-plugin-osn/skaffold/run_coldfront.sh /opt/venv/bin
+# # changed for nese plugin
+COPY coldfront-plugin-nese/skaffold/local_settings.py /opt/venv/lib/python3.9/site-packages
+COPY coldfront-plugin-nese/skaffold/run_coldfront.sh /opt/venv/bin
 # ##
 
 RUN mkdir /code /plugins
 WORKDIR /code
-COPY coldfront-plugin-osn/src /code
+COPY coldfront-plugin-nese/src /code
 
 ENV PATH="/opt/venv/bin:$PATH"
 ENV DJANGO_SETTINGS_MODULE="local_settings"

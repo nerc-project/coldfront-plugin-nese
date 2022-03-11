@@ -4,6 +4,7 @@ namespace: coldfront
 resources:
   - ../../coldfront-nerc/k8s/overlays/prod
   - ./nese_secrets.yaml
+  - ./nese_configmap.yaml
 
 patches:
 
@@ -34,6 +35,8 @@ patches:
                 imagePullPolicy: Never
                 envFrom:
                 - configMapRef:
+                    name: coldfront-plugin-nese
+                - configMapRef:
                     name: coldfront-configmap
                 - secretRef:
                     name: coldfront-plugin-nese
@@ -56,6 +59,8 @@ patches:
                 command: ["run_coldfront.sh"]
                 args: ["qcluster"]
                 envFrom:
+                - configMapRef:
+                    name: coldfront-plugin-nese
                 - configMapRef:
                     name: coldfront-configmap
                 - secretRef:

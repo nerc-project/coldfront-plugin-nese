@@ -8,6 +8,7 @@ from rgwadmin import RGWAdmin
 from rgwadmin.exceptions import RGWAdminException
 from botocore.exceptions import ClientError
 
+NESE_MC_ALIAS = "NESE"
 
 
 def get_client(profile):
@@ -161,6 +162,28 @@ def create_user_rgw(username, profile, display_name=None, email=None):
     return result
 
 
+def set_bucket_quota_rgw(
+        bucketname: str,
+        quota: int,
+        profile: dict) -> bool:
+
+    isSecure = profile['scheme'] == 'https'
+    rgw = RGWAdmin(
+        access_key=profile['access_key'],
+        secret_key=profile['secret_key'],
+        server=profile['endpoint'],
+        secure=isSecure
+    )
+
+    # Quota in TB to value in KB
+    quota_kb = quota * (1024*1024*1024)
+    rgw.set_bucket_quota(
+        uid=profile['uid'],
+        bucket=bucketname,
+        max_size_kb=quota_kb,
+        enabled=True)
+
+
 def create_user_minio(
         username: str,
         profile: dict) -> dict:
@@ -170,17 +193,15 @@ def create_user_minio(
         secrets.choice(ALPHABET) for i in range(30)
     )
 
-    subenv = os.environ.copy()
-    subenv['MC_HOST_NESE'] = (
-        f"{profile['scheme']}://"
-        f"{profile['access_key']}:{profile['secret_key']}@"
-        f"{profile['endpoint']}"
+    subres = _execute_mcadmin(
+        "user",
+        "add",
+        "--json",
+        NESE_MC_ALIAS,
+        username,
+        user_secret,
+        profile=profile
     )
-    command = [
-        "mc", "admin", "user", "add", "--json", "NESE", username, user_secret
-    ]
-
-    subres = runsub(command, capture_output=True, check=True, env=subenv)
 
     result = {
         'uid': username,
@@ -190,3 +211,37 @@ def create_user_minio(
     }
 
     return result
+
+
+def set_bucket_quota_minio(
+        bucketname: str,
+        quota: int,
+        profile: dict) -> bool:
+
+    # Note: Quota in TB
+    # Throws if command is not successful
+    _execute_mcadmin(
+        "bucket",
+        "quota",
+        f"{NESE_MC_ALIAS}/{bucketname}",
+        "--hard",
+        f"{quota}t",
+        profile=profile
+    )
+
+
+def _execute_mcadmin(*args, profile):
+    subenv = os.environ.copy()
+    mcailias_env = f"MC_HOST_{NESE_MC_ALIAS}"
+    subenv[mcailias_env] = (
+        f"{profile['scheme']}://"
+        f"{profile['access_key']}:{profile['secret_key']}@"
+        f"{profile['endpoint']}"
+    )
+
+    command = ("mc", "admin") + args
+    subres = runsub(command, capture_output=True, check=True, env=subenv)
+
+    # Throws with useful info if retcode is non-zero
+    subres.check_returncode()
+    return subres

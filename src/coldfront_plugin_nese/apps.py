@@ -7,8 +7,8 @@ All rights reserved. No warranty, explicit or implicit, provided.
 from django.apps import AppConfig
 
 
-class OsnPluginConfig(AppConfig):
-    name = 'coldfront_plugin_osn'
+class NesePluginConfig(AppConfig):
+    name = 'coldfront_plugin_nese'
 
     def ready(self):
-        import coldfront_plugin_osn.signals
+        import coldfront_plugin_nese.signals

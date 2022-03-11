@@ -12,7 +12,7 @@ from .tasks import process_nese_allocation
 @receiver(allocation_activate)
 def activate_allocation_receiver(sender, **kwargs):
     allocation_pk = kwargs.get('allocation_pk')
-    process_nese_allocation()
+    process_nese_allocation(allocation_pk)
 
 
 @receiver(allocation_disable)

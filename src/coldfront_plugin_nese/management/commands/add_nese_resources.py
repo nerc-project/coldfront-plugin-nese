@@ -5,7 +5,7 @@ from coldfront.core.resource.models import (Resource,
                                             ResourceAttributeType,
                                             ResourceType)
 
-from coldfront_plugin_osn import attributes
+from coldfront_plugin_nese import attributes
 
 
 class Command(BaseCommand):
@@ -66,5 +66,5 @@ class Command(BaseCommand):
             resource_attribute_type=ResourceAttributeType.objects.get(
                 name="quantity_label"),
             resource=nese,
-            value='TB'
+            value='Bucket Quota (TB)'
         )

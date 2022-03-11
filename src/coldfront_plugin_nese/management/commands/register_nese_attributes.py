@@ -3,7 +3,11 @@ from django.core.management.base import BaseCommand
 from coldfront.core.allocation import models as allocation_models
 from coldfront.core.resource import models as resource_models
 
-from coldfront_plugin_osn import attributes
+from coldfront_plugin_nese import attributes
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -11,8 +15,11 @@ class Command(BaseCommand):
 
     def register_allocation_attributes(self):
 
+        logger.debug('Registering NESE attributes')
+
         attrinfo = [
             (attributes.ALLOCATION_TEXT_ATTRIBUTES, "Text"),
+            (attributes.ALLOCATION_INT_ATTRIBUTES, "Int")
         ]
 
         for alloc_attr_type_names, attr_type_name in attrinfo:
@@ -47,6 +54,13 @@ class Command(BaseCommand):
                     attribute_type=attr_type
                 )
 
+    def add_allocation_status_choices(self):
+        
+        for choice in attributes.ALLOCATION_STATUS_CHOICES:
+            allocation_models.AllocationStatusChoice.objects.get_or_create(
+                name=choice
+            )
+
     # def register_resource_type(self):
     #     resource_models.ResourceType.objects.get_or_create(
     #         name='NESE ', description='Open Storage Network')
@@ -55,3 +69,4 @@ class Command(BaseCommand):
         # self.register_resource_type()
         self.register_resource_attributes()
         self.register_allocation_attributes()
+        self.add_allocation_status()

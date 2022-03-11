@@ -2,7 +2,7 @@
 apiVersion: skaffold/v2beta26
 kind: Config
 metadata:
-  name: coldfront-plugin-osn
+  name: coldfront-plugin-nese
 build:
   tagPolicy:
     sha256: {}
@@ -10,12 +10,12 @@ build:
     - image: culbert/coldfront-nerc
       context: ../..
       docker:
-        dockerfile: coldfront-plugin-osn/skaffold/Dockerfile
+        dockerfile: coldfront-plugin-nese/skaffold/Dockerfile
       sync:
         manual:
-          - src: "coldfront-plugin-osn/src/**"
+          - src: "coldfront-plugin-nese/src/**"
             dest: "/code"
-            strip: "coldfront-plugin-osn/src/"
+            strip: "coldfront-plugin-nese/src/"
 
 deploy:
   kustomize:

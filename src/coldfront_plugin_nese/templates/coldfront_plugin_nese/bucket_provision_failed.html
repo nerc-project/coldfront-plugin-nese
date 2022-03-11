@@ -1,0 +1,16 @@
+An attempt to allocate resource failed.
+Project: {{allocation.project.title}}
+Resource/PI: {{allocation}}
+FIXME -> PARAMETERIZE URL CONSTRUCTION
+Allocation URL: https://coldfront.mss.mghpcc.org{% url 'allocation-detail' allocation.id %}
+
+The following errors were recorded during processing:
+{% for t in failed_tasks%}
+=====================
+Task Step: 
+{{t.func}}
+
+Task Exception: 
+{{t.result|safe}}
+=====================
+{% endfor %}
