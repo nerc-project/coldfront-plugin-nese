@@ -1,4 +1,5 @@
-from subprocess import PIPE, run as runsub
+# from email import policy
+from subprocess import run as runsub
 import os
 import secrets
 import string
@@ -21,7 +22,54 @@ def get_client(profile):
     return client
 
 
-def apply_policy(bucket_name, user_name, profile):
+def apply_policy_minio(bucket_name, user_name, profile):
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "bucket read write policy",
+                "Effect": "Allow",
+                "Action":[
+                    "s3:DeleteObject",
+                    "s3:GetObject",
+                    "s3:ListBucket",
+                    "s3:PutObject"
+                ],
+                "Resource":[
+                    f"arn:aws:s3:::{bucket_name}/*",
+                    f"arn:aws:s3:::{bucket_name}"
+                ]
+            }
+            ]
+    }
+    policy_str = json.dumps(policy)
+    policy_name = f"{bucket_name}_policy"
+
+    # Create the canned policy
+    _execute_mc(
+        "admin",
+        "policy",
+        "add",
+        NESE_MC_ALIAS,
+        policy_name,
+        "-",
+        profile=profile,
+        input=policy_str.encode()
+    )
+
+    # Apply the canned policy to the user
+    _execute_mc(
+        "admin",
+        "policy",
+        "set",
+        NESE_MC_ALIAS,
+        policy_name,
+        f"user={user_name}",
+        profile=profile
+    )
+
+
+def apply_policy_rgw(bucket_name, user_name, profile):
 
     bucket_policy = {
         "Version": "2012-10-17",
@@ -193,7 +241,8 @@ def create_user_minio(
         secrets.choice(ALPHABET) for i in range(30)
     )
 
-    subres = _execute_mcadmin(
+    subres = _execute_mc(
+        "admin",
         "user",
         "add",
         "--json",
@@ -216,11 +265,12 @@ def create_user_minio(
 def set_bucket_quota_minio(
         bucketname: str,
         quota: int,
-        profile: dict) -> bool:
+        profile: dict):
 
     # Note: Quota in TB
     # Throws if command is not successful
-    _execute_mcadmin(
+    _execute_mc(
+        "admin",
         "bucket",
         "quota",
         f"{NESE_MC_ALIAS}/{bucketname}",
@@ -230,7 +280,22 @@ def set_bucket_quota_minio(
     )
 
 
-def _execute_mcadmin(*args, profile):
+def set_bucket_tags_minio(
+        bucketname: str,
+        tags: dict,
+        profile: dict):
+
+    tagstr = "&".join([f"{k}={v}" for k, v in tags.items()])
+    _execute_mc(
+        "tag",
+        "set",
+        f"{NESE_MC_ALIAS}/{bucketname}",
+        tagstr,
+        profile=profile
+    )
+
+
+def _execute_mc(*args, profile, timeout=60, input=None):
     subenv = os.environ.copy()
     mcailias_env = f"MC_HOST_{NESE_MC_ALIAS}"
     subenv[mcailias_env] = (
@@ -239,8 +304,15 @@ def _execute_mcadmin(*args, profile):
         f"{profile['endpoint']}"
     )
 
-    command = ("mc", "admin") + args
-    subres = runsub(command, capture_output=True, check=True, env=subenv)
+    command = ("mc",) + args
+    subres = runsub(
+        command,
+        capture_output=True,
+        check=True,
+        env=subenv,
+        timeout=timeout,
+        input=input
+    )
 
     # Throws with useful info if retcode is non-zero
     subres.check_returncode()

@@ -4,7 +4,8 @@ namespace: coldfront
 resources:
   - ../../coldfront-nerc/k8s/overlays/prod
   - ./nese_secrets.yaml
-  - ./nese_configmap.yaml
+  - ./minio_deployment.yaml
+  - ./minio_service.yaml 
 
 patches:
 
@@ -18,7 +19,19 @@ patches:
         DEBUG: "True"
         PYTHONUNBUFFERED: "1"
         PYTHONPATH: "/code:/plugins"
-#        INITIAL_SETUP: "True"  
+        EMAIL_ENABLED: "True"
+        EMAIL_HOST: "email-smtp.us-east-1.amazonaws.com"
+        EMAIL_PORT: "587"
+        EMAIL_USE_TLS: "True"
+        EMAIL_SUBJECT_PREFIX: '[ColdFront]'
+        EMAIL_ADMIN_LIST: "culbertj@mghpcc.org, james.culbert@gmail.com"
+        EMAIL_SENDER: "coldfrontadmin@mghpcc.org"
+        EMAIL_TICKET_SYSTEM_ADDRESS: "culbertj@mghpcc.org"
+        EMAIL_DIRECTOR_EMAIL_ADDRESS: "culbertj@mghpcc.org"
+        EMAIL_PROJECT_REVIEW_CONTACT: "culbertj@mghpcc.org"
+        EMAIL_DEVELOPMENT_EMAIL_LIST: "culbertj@mghpcc.org, james.culbert@gmail.com"
+        # INITIAL_SETUP: "True"  
+
 
   # Switch to dev image
   - patch: |-
@@ -34,8 +47,6 @@ patches:
                 image: culbert/coldfront-nerc:latest
                 imagePullPolicy: Never
                 envFrom:
-                - configMapRef:
-                    name: coldfront-plugin-nese
                 - configMapRef:
                     name: coldfront-configmap
                 - secretRef:
@@ -59,8 +70,6 @@ patches:
                 command: ["run_coldfront.sh"]
                 args: ["qcluster"]
                 envFrom:
-                - configMapRef:
-                    name: coldfront-plugin-nese
                 - configMapRef:
                     name: coldfront-configmap
                 - secretRef:

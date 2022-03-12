@@ -64,9 +64,10 @@ class Command(BaseCommand):
     # def register_resource_type(self):
     #     resource_models.ResourceType.objects.get_or_create(
     #         name='NESE ', description='Open Storage Network')
+    # random edit
 
     def handle(self, *args, **options):
         # self.register_resource_type()
         self.register_resource_attributes()
         self.register_allocation_attributes()
-        self.add_allocation_status()
+        self.add_allocation_status_choices()

@@ -140,6 +140,7 @@ def provision_nese_user(
         profile: dict = None,
         allocation_pk: str = None) -> dict:
 
+    logger.debug("Processing nese bucket user provisioning.")
     # Throws if bad profile
     _check_profile(profile)
 
@@ -148,7 +149,7 @@ def provision_nese_user(
         uinfo = utils.create_user_rgw(username, profile)
     elif etype == 'minio':
         uinfo = utils.create_user_minio(username, profile)
-
+    logger.debug("Processing nese bucket user provisioning - COMPLETED.")
     result = {
         'type': 'nese_user',
         'uid': uinfo['uid'],
@@ -167,6 +168,7 @@ def provision_nese_bucket(
         resgroup: str = None,
         allocation_pk: str = None) -> dict:
 
+    logger.debug("Processing nese bucket provisioning")
     # Sanity check on endpoint type. Throws if problems.
     _check_profile(profile)
 
@@ -195,17 +197,28 @@ def provision_nese_bucket(
         )
 
     utils.create_bucket(bucket_name, profile)
-    utils.apply_policy(bucket_name, create_user_result['uid'], profile)
-
+    
     # Minio does not support CORS policy. CORS is on
     # by default for all buckets and HTTP verbs
     etype = profile['endpoint_type']
     if etype == 'rgw':
+        utils.apply_policy_rgw(bucket_name, create_user_result['uid'], profile)
         utils.apply_cors(bucket_name, profile)
         utils.set_bucket_quota_rgw(bucket_name, quota, profile)
 
     elif etype == 'minio':
-        utils.set_bucket_quota_minio(bucket_name, quota, profile)
+        utils.apply_policy_minio(bucket_name, create_user_result['uid'], profile)
+        
+        allocation = Allocation.objects.get(pk=allocation_pk)
+        tags = {
+            'quota': quota,
+            'rsrc': allocation.get_parent_resource.name,
+            'pi': allocation.project.pi,
+            'projname': allocation.project.title
+        }
+
+        # utils.set_bucket_quota_minio(bucket_name, quota, profile)
+        utils.set_bucket_tags_minio(bucket_name, tags, profile)
 
     result = {
         'type': 'nese_bucket',

@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nese-minio
+  namespace: coldfront
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coldfront
+      plugin: nese
+      deployment: minio
+  template:
+    metadata:
+      labels:
+        app: coldfront
+        plugin: nese
+        deployment: minio
+    spec:
+      containers:
+        - name: coldfront-minio
+          image: quay.io/minio/minio
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+          # command:
+          #   - 'server'
+          args:
+            - 'server'
+            - '/data'
+            - '--address'
+            - '0.0.0.0:9000'
+            - '--console-address'
+            - ':9001'
+          volumeMounts:
+            - name: minio-data
+              mountPath: /data
+          env:
+            - name: MINIO_ROOT_USER
+              value: 'AKIAIOSFODNN7EXAMPLE'
+            - name: MINIO_ROOT_PASSWORD
+              value: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+      volumes:
+        - name: minio-data
+          emptyDir: {}
