@@ -5,6 +5,7 @@ import secrets
 import string
 import boto3
 import json
+import tempfile
 from rgwadmin import RGWAdmin
 from rgwadmin.exceptions import RGWAdminException
 from botocore.exceptions import ClientError
@@ -29,7 +30,7 @@ def apply_policy_minio(bucket_name, user_name, profile):
             {
                 "Sid": "bucket read write policy",
                 "Effect": "Allow",
-                "Action":[
+                "Action": [
                     "s3:DeleteObject",
                     "s3:GetObject",
                     "s3:ListBucket",
@@ -46,16 +47,18 @@ def apply_policy_minio(bucket_name, user_name, profile):
     policy_name = f"{bucket_name}_policy"
 
     # Create the canned policy
-    _execute_mc(
-        "admin",
-        "policy",
-        "add",
-        NESE_MC_ALIAS,
-        policy_name,
-        "-",
-        profile=profile,
-        input=policy_str.encode()
-    )
+    with tempfile.NamedTemporaryFile() as policy_file:
+        policy_file.write(policy_str.encode())
+        policy_file.flush()
+        _execute_mc(
+            "admin",
+            "policy",
+            "add",
+            NESE_MC_ALIAS,
+            policy_name,
+            policy_file.name,
+            profile=profile
+        )
 
     # Apply the canned policy to the user
     _execute_mc(
