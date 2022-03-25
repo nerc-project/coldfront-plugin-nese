@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service 
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  type: NodePort
+  ports:
+    - name: vaultapi
+      port: 8200
+      protocol: TCP
+      targetPort: 8200
+      nodePort: 30820
+  selector:
+    app: vault
+    deployment: vault

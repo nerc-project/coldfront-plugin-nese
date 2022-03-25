@@ -1,0 +1,7 @@
+---
+
+resources:
+  - ./vault_namespace.yaml
+  - ./vault_pvc.yaml
+  - ./vault_deployment.yaml
+  - ./vault_service.yaml 

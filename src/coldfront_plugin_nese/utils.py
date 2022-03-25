@@ -6,6 +6,7 @@ import string
 import boto3
 import json
 import tempfile
+import time
 from rgwadmin import RGWAdmin
 from rgwadmin.exceptions import RGWAdminException
 from botocore.exceptions import ClientError
@@ -288,6 +289,7 @@ def set_bucket_tags_minio(
         tags: dict,
         profile: dict):
 
+    tags['timestamp'] = str(time.time())
     tagstr = "&".join([f"{k}={v}" for k, v in tags.items()])
     _execute_mc(
         "tag",
@@ -296,6 +298,56 @@ def set_bucket_tags_minio(
         tagstr,
         profile=profile
     )
+
+
+def get_bucket_tags_minio(
+        bucketname: str,
+        profile: dict) -> dict:
+
+    tags_json_str = _execute_mc(
+        "tag",
+        "list",
+        "--json"
+        f"{NESE_MC_ALIAS}/{bucketname}",
+        profile=profile
+    )
+
+    tags = json.loads(tags_json_str)
+
+    return tags
+
+
+def set_bucket_quota(bucket_name, quota, profile):
+
+    etype = profile['endpoint_type']
+    if etype == 'rgw':
+        set_bucket_quota_rgw(bucket_name, quota, profile)
+
+    elif etype == 'minio':
+        tags = {
+            'quota': quota,
+            # 'rsrc': allocation.get_parent_resource.name,
+            # 'pi': allocation.project.pi,
+            # 'projname': allocation.project.title
+        }
+
+        # utils.set_bucket_quota_minio(bucket_name, quota, profile)
+        set_bucket_tags_minio(bucket_name, tags, profile)
+
+
+def get_bucket_quota(bucket_name, profile):
+    etype = profile['endpoint_type']
+    if etype == 'rgw':
+        # TODO: Implement rgw bucket quota retrieval
+        raise NotImplementedError()
+        #get_bucket_quota_rgw(bucket_name, quota, profile)
+
+    elif etype == 'minio':
+        # utils.get_bucket_quota_minio(bucket_name, quota, profile)
+        tags = get_bucket_tags_minio(bucket_name, profile)
+        quota = tags['quota']
+
+    return quota
 
 
 def _execute_mc(*args, profile, timeout=60, input=None):
@@ -316,6 +368,11 @@ def _execute_mc(*args, profile, timeout=60, input=None):
         timeout=timeout,
         input=input
     )
+
+    # comments 
+    print( 'exit status:', subres.returncode )
+    print( 'stdout:', subres.stdout.decode() )
+    print( 'stderr:', subres.stderr.decode() )
 
     # Throws with useful info if retcode is non-zero
     subres.check_returncode()

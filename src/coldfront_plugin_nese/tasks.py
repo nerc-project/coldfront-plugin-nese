@@ -1,5 +1,5 @@
 from django.conf import settings
-from django_q.tasks import Chain, fetch_group, delete_group
+from django_q.tasks import AsyncTask, Chain, fetch_group, delete_group
 from django_q.humanhash import uuid
 from coldfront.core.allocation.models import (
     Allocation,
@@ -11,6 +11,7 @@ from coldfront.core.utils.mail import send_email_template
 from coldfront.config.email import EMAIL_TICKET_SYSTEM_ADDRESS, EMAIL_SENDER
 from functools import wraps
 from django.db import transaction
+from django.urls import reverse
 from coldfront_plugin_nese import attributes, utils
 
 import logging
@@ -35,17 +36,44 @@ def allocation_step(func):
     return inner_func
 
 
-# Find all allocation ids with attributes of
-# a given type
-def _get_alloc_pks(attr_name):
-    attr_type = AllocationAttributeType.objects.get(
-        name=attr_name
+def process_nese_quota(allocation_pk):
+    profile = _get_profile()
+    t = AsyncTask(
+        'coldfront_plugin_nese.tasks.provision_nese_quota',
+        profile,
+        allocation_pk=allocation_pk,
+        hook='coldfront_plugin_nese.tasks._provision_nese_quota_hook'
     )
-    attrs = AllocationAttribute.objects.filter(
-        allocation_attribute_type=attr_type
-    )
+    t.run()
 
-    return [a.allocation.pk for a in attrs]
+
+# Run periodically to make sure allocation quota value
+# matches the value set on the bucket.
+def process_nese_quota_sweep():
+
+    profile = _get_profile()
+    for alloc in Allocation.objects.all():
+
+        # Get the allocation quota attribute
+        quota_attr = alloc.get_attribute(attributes.ALLOCATION_QUOTA)
+        allocation_quota = quota_attr.value
+
+        # Get the allocation bucket name
+        bucket_attr = alloc.get_attribute(attributes.ALLOCATION_BUCKETNAME)
+        bucket_name = bucket_attr.value
+
+        # Get the bucket quota from object store
+        bucket_quota = utils.get_bucket_quota(bucket_name, profile)
+
+        # Compare quota set in the store with what allocation
+        # expects. If different, fix.
+        if bucket_quota != allocation_quota:
+            logger.info(
+                f"Adjusting quota for bucket {bucket_name} "
+                f"from {bucket_quota} to value specified "
+                f"in allocation, {allocation_quota}"
+            )
+            process_nese_quota(alloc.pk) 
 
 
 def process_nese_allocation(allocation_pk=None):
@@ -135,6 +163,61 @@ def cleanup(task):
 # Note: Allocation step decorator synchronizes. Uses
 # allocaion_pk from function arguments
 @allocation_step
+def provision_nese_quota(
+        profile,
+        allocation_pk=None):
+
+    alloc = Allocation.objects.get(pk=allocation_pk)
+    allocation_quota = alloc.get_attribute(attributes.ALLOCATION_QUOTA)
+    bucket_name = alloc.get_attribute(attributes.ALLOCATION_BUCKETNAME)
+
+    if profile['endpoint_type'] != 'minio':
+        utils.set_bucket_quota(bucket_name, allocation_quota, profile)
+    else:
+        tags = {
+            'quota': allocation_quota,
+            'rsrc': alloc.get_parent_resource.name,
+            'pi': alloc.project.pi,
+            'projname': alloc.project.title
+        }
+
+        utils.set_bucket_tags_minio(bucket_name, tags, profile)
+
+
+def _provision_nese_quota_hook(task):
+
+    # Task function is provision_nese_quota which has
+    # args (profile, allocation_pk)
+
+    allocation_pk = task.kwargs['allocation_pk']
+    alloc = Allocation.objects.get(pk=allocation_pk)
+
+    allocation_quota = alloc.get_attribute(attributes.ALLOCATION_QUOTA)
+    bucket_name = alloc.get_attribute(attributes.ALLOCATION_BUCKETNAME)
+
+    allocation_path = reverse('allocation-detail', args=[allocation_pk])
+    allocation_url = f"{settings.CENTER_BASE_URL}/{allocation_path}"
+
+    ctx = {
+        'task': task,
+        'allocation': alloc,
+        'allocation_url': allocation_url,
+        'quota': allocation_quota,
+        'bucket_name': bucket_name
+    }
+
+    # comment
+    if not task.success:
+        send_email_template(
+            "NESE Bucket quota adjustment failed.",
+            "coldfront_plugin_nese/bucket_quota_failed.html",
+            ctx,
+            EMAIL_SENDER,
+            [EMAIL_TICKET_SYSTEM_ADDRESS, ]
+        )
+
+
+@allocation_step
 def provision_nese_user(
         username: str,
         profile: dict = None,
@@ -197,28 +280,21 @@ def provision_nese_bucket(
         )
 
     utils.create_bucket(bucket_name, profile)
-    
+
     # Minio does not support CORS policy. CORS is on
     # by default for all buckets and HTTP verbs
     etype = profile['endpoint_type']
     if etype == 'rgw':
         utils.apply_policy_rgw(bucket_name, create_user_result['uid'], profile)
         utils.apply_cors(bucket_name, profile)
-        utils.set_bucket_quota_rgw(bucket_name, quota, profile)
-
     elif etype == 'minio':
-        utils.apply_policy_minio(bucket_name, create_user_result['uid'], profile)
-        
-        allocation = Allocation.objects.get(pk=allocation_pk)
-        tags = {
-            'quota': quota,
-            'rsrc': allocation.get_parent_resource.name,
-            'pi': allocation.project.pi,
-            'projname': allocation.project.title
-        }
+        utils.apply_policy_minio(
+            bucket_name,
+            create_user_result['uid'],
+            profile
+        )
 
-        # utils.set_bucket_quota_minio(bucket_name, quota, profile)
-        utils.set_bucket_tags_minio(bucket_name, tags, profile)
+    utils.set_bucket_quota(bucket_name, quota, profile)
 
     result = {
         'type': 'nese_bucket',
@@ -247,8 +323,12 @@ def update_nese_allocation(
         for f in failed:
             print(f"FAILINFO (task={f.func}): {f.result}")
 
+        allocation_path = reverse('allocation-detail', args=[allocation_pk])
+        allocation_url = f"{settings.CENTER_BASE_URL}/{allocation_path}"
+
         ctx = {
             'allocation': allocation,
+            'allocation_url': allocation_url,
             'failed_tasks': failed
         }
 
@@ -295,6 +375,35 @@ def update_nese_allocation(
     return retval
 
 
+# ######## Internal #############
+
+
+# Find all allocation ids with attributes of
+# a given type
+def _get_alloc_pks(attr_name):
+    attr_type = AllocationAttributeType.objects.get(
+        name=attr_name
+    )
+    attrs = AllocationAttribute.objects.filter(
+        allocation_attribute_type=attr_type
+    )
+
+    return [a.allocation.pk for a in attrs]
+
+
+def _get_profile():
+    profile = {
+        'endpoint': settings.NESE_ENDPOINT,
+        'endpoint_type': settings.NESE_ENDPOINT_TYPE,
+        'access_key': settings.NESE_ENDPOINT_ACCESS_KEY,
+        'secret_key': settings.NESE_ENDPOINT_SECRET_KEY,
+        'scheme': settings.NESE_ENDPOINT_SCHEME,
+        'uid': settings.NESE_ENDPOINT_UID
+    }
+
+    return profile
+
+
 def _check_profile(profile: str):
 
     # Check valid endpoint type
@@ -307,7 +416,7 @@ def _check_profile(profile: str):
     if scheme not in ['http', 'https']:
         raise ValueError(f"Unrecognized endpoint scheme {scheme}")
 
-    # Missing values 
+    # Missing values
     required = ['endpoint', 'access_key', 'secret_key', 'uid']
     missing = [r for r in required if profile.get(r, None) is None]
     if len(missing) > 0:

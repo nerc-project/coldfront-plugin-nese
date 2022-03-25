@@ -1,13 +1,31 @@
 ---
-namespace: coldfront
-
 resources:
   - ../../coldfront-nerc/k8s/overlays/prod
+  - ./vault
   - ./nese_secrets.yaml
   - ./minio_deployment.yaml
-  - ./minio_service.yaml 
+  - ./minio_service.yaml
 
-patches:
+ 
+patches: 
+  - patch: |-
+      - op: add
+        path: /spec/data/-
+        value:
+          secretKey: EMAIL_HOST_USER
+          remoteRef:
+            key: accounts/aws/mghpcc/smtp
+            property: EMAIL_HOST_USER
+      - op: add
+        path: /spec/data/-
+        value:
+          secretKey: EMAIL_HOST_PASSWORD
+          remoteRef:
+            key: accounts/aws/mghpcc/smtp
+            property: EMAIL_HOST_PASSWORD
+    target:
+      kind: ExternalSecret
+      name: coldfront-secrets
 
   # Debug environment stuff
   - patch: |-
@@ -30,8 +48,8 @@ patches:
         EMAIL_DIRECTOR_EMAIL_ADDRESS: "culbertj@mghpcc.org"
         EMAIL_PROJECT_REVIEW_CONTACT: "culbertj@mghpcc.org"
         EMAIL_DEVELOPMENT_EMAIL_LIST: "culbertj@mghpcc.org, james.culbert@gmail.com"
+        CENTER_BASE_URL: "https://coldfront.mss.mghpcc.org"
         # INITIAL_SETUP: "True"  
-
 
   # Switch to dev image
   - patch: |-
@@ -42,6 +60,10 @@ patches:
       spec:
         template:
           spec:
+            hostAliases:
+            - ip: "140.247.152.183"
+              hostnames:
+              - "keycloak.mss.mghpcc.org" 
             containers:
               - name: coldfront
                 image: culbert/coldfront-nerc:latest

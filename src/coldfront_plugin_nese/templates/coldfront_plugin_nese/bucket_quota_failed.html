@@ -1,15 +1,15 @@
-An attempt to allocate resource failed.
+An attempt to adjust a bucket quota failed.
 Project: {{allocation.project.title}}
 Resource/PI: {{allocation}}
+Bucket: {{bucket_name}}
+New Quota: {{quota}}
 Allocation URL: {{ allocation_url }}
 
 The following errors were recorded during processing:
-{% for t in failed_tasks%}
 =====================
-Task Step: 
-{{t.func}}
+Task: 
+{{task.func}}
 
 Task Exception: 
-{{t.result|safe}}
+{{task.result|safe}}
 =====================
-{% endfor %}

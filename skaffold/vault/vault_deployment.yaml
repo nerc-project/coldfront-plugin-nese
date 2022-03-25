@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault
+      deployment: vault
+  template:
+    metadata:
+      labels:
+        app: vault
+        deployment: vault
+    spec:
+      containers:
+        - name: vault
+          image: hashicorp/vault
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8200
+            - containerPort: 8201
+          args:
+            - "vault"
+            - "server"
+            - "-config=/vault/config/"
+          securityContext:
+            capabilities:
+              add:
+                - IPC_LOCK
+          volumeMounts:
+            - name: vault-file
+              mountPath: /vault/file
+            # - name: vault-config
+            #   mountPath: /vault/config
+          env:
+            - name: VAULT_LOCAL_CONFIG
+              value: '{"ui": "true", "listener": {"tcp": {"address": "0.0.0.0:8200", "tls_disable": "true"}}, "backend": {"file": {"path": "/vault/file"}}, "default_lease_ttl": "168h", "max_lease_ttl": "720h"}'
+      volumes:
+        - name: vault-file
+          persistentVolumeClaim:
+            claimName: vault-file
+

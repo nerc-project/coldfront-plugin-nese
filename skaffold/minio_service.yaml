@@ -2,12 +2,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nese-minio
+  namespace: coldfront
 spec:
+  type: NodePort
   ports:
     - name: minioapi
       port: 9000
       protocol: TCP
       targetPort: 9000
+      nodePort: 30900
     - name: minioconsole
       port: 9001
       protocol: TCP
