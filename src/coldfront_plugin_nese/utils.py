@@ -1,5 +1,5 @@
 # from email import policy
-from subprocess import run as runsub
+from subprocess import run as runsub, CalledProcessError
 import os
 import secrets
 import string
@@ -10,6 +10,8 @@ import time
 from rgwadmin import RGWAdmin
 from rgwadmin.exceptions import RGWAdminException
 from botocore.exceptions import ClientError
+
+from .exceptions import NESEProvisioningError
 
 NESE_MC_ALIAS = "NESE"
 
@@ -129,8 +131,8 @@ def create_bucket(bucket_name, profile):
         s3_client = get_client(profile)
         s3_client.create_bucket(Bucket=bucket_name)
     except ClientError as e:
-        print(e)
-        return False
+        raise NESEProvisioningError(e)
+
     return True
 
 
@@ -173,8 +175,7 @@ def apply_cors(bucket_name, profile):
             CORSConfiguration=cors_configuration
         )
     except ClientError as e:
-        print(e)
-        return False
+        raise NESEProvisioningError(e)
 
     return True
 
@@ -203,7 +204,7 @@ def create_user_rgw(username, profile, display_name=None, email=None):
             print("INFO: User already exists")
             ret_user = rgw.get_user(uid=username)
         else:
-            raise(e)
+            raise NESEProvisioningError(e)
 
     result = {
         'uid': username,
@@ -229,11 +230,14 @@ def set_bucket_quota_rgw(
 
     # Quota in TB to value in KB
     quota_kb = quota * (1024*1024*1024)
-    rgw.set_bucket_quota(
-        uid=profile['uid'],
-        bucket=bucketname,
-        max_size_kb=quota_kb,
-        enabled=True)
+    try:
+        rgw.set_bucket_quota(
+            uid=profile['uid'],
+            bucket=bucketname,
+            max_size_kb=quota_kb,
+            enabled=True)
+    except Exception as e:
+        raise NESEProvisioningError(e)
 
 
 def create_user_minio(
@@ -360,20 +364,23 @@ def _execute_mc(*args, profile, timeout=60, input=None):
     )
 
     command = ("mc",) + args
-    subres = runsub(
-        command,
-        capture_output=True,
-        check=True,
-        env=subenv,
-        timeout=timeout,
-        input=input
-    )
 
-    # comments 
-    print( 'exit status:', subres.returncode )
-    print( 'stdout:', subres.stdout.decode() )
-    print( 'stderr:', subres.stderr.decode() )
+    try:
+        subres = runsub(
+            command,
+            capture_output=True,
+            check=True,
+            env=subenv,
+            timeout=timeout,
+            input=input
+        )
+    except CalledProcessError as e:
+        msg = (
+            f"MINIO CMD: {e.cmd}{os.linesep}"
+            f"STDOUT: {e.stdout}{os.linesep}",
+            f"STDERR: {e.stderr}{os.linesep}"
+            f"RETCODE: {e.returncode}{os.linesep}"
+        )
+        raise NESEProvisioningError(msg)
 
-    # Throws with useful info if retcode is non-zero
-    subres.check_returncode()
     return subres

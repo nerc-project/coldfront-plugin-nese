@@ -6,8 +6,34 @@ resources:
   - ./minio_deployment.yaml
   - ./minio_service.yaml
 
- 
-patches: 
+patches:
+  # Use staging for certs
+  - patch: |-
+      - op: replace
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt-staging
+    target:
+      kind: Ingress
+
+  # Change ingress hostname (part1)
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: coldfrontdev.mss.mghpcc.org
+    target:
+      kind: Ingress
+
+  # Change ingress hostname (part2)
+  - patch: |-
+      - op: replace
+        path: /spec/tls/0
+        value: 
+          hosts:
+            - coldfrontdev.mss.mghpcc.org
+          secretName: coldfrontev-tls
+    target:
+      kind: Ingress
+
   - patch: |-
       - op: add
         path: /spec/data/-
@@ -63,7 +89,8 @@ patches:
             hostAliases:
             - ip: "140.247.152.183"
               hostnames:
-              - "keycloak.mss.mghpcc.org" 
+              - "keycloak.mss.mghpcc.org"
+              - "keycloakdev.mss.mghpcc.org" 
             containers:
               - name: coldfront
                 image: culbert/coldfront-nerc:latest

@@ -28,8 +28,6 @@ def allocation_disable_receiver(sender, **kwargs):
 @receiver(post_save, sender=AllocationAttribute)
 def UpdateAllocationQuota(sender, instance, created, **kwargs):
 
-    print(f"Caught quota change. New quota = {instance.value}")
-
     quota_type = AllocationAttributeType.objects.get(
         name=ALLOCATION_QUOTA
     )

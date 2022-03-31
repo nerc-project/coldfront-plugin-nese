@@ -1,0 +1,2 @@
+class NESEProvisioningError(Exception):
+    pass
