@@ -1,4 +1,5 @@
 #
+git+https://github.com/nerc-project/coldfront-plugin-nese@8eb8521a6df0bd9e2f6c2cbdc1ab696a25e10ba9#egg=coldfront_plugin_nese
 boto3
 rgwadmin
 watchgod

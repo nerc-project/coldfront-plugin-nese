@@ -1,0 +1,49 @@
+#FROM ghcr.io/nerc-project/coldfront-nerc
+FROM culbert/coldfront-nerc-base as builder
+
+# Note that base image leaves /opt/venv/bin at top of path
+# so default python installs there
+
+USER 0
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential git wget && \
+    apt-get clean -y
+
+# Add plugin + deps to site-packages
+COPY coldfront-plugin-nese/requirements.txt /tmp/neserequirements.txt
+RUN pip3 install -r /tmp/neserequirements.txt
+
+# install mc client
+RUN wget https://dl.min.io/client/mc/release/linux-amd64/mc -o /opt/venv/bin/mc
+RUN chmod a+x /opt/venv/bin/mc
+
+#--------------------------------------------#
+
+# Final Development Image
+FROM python:3.9-slim-bullseye
+
+# Needed by coldfront-nerc
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        netcat libmariadb3 libpq5 && \
+    apt-get clean -y
+
+COPY --from=builder --chown=1001:0 /opt/venv /opt/venv
+
+# Overrides for development
+RUN mkdir /code
+RUN chown 1001:0 /code && chmod g=u /code
+COPY --chown=1001:0 coldfront-plugin-nese/src /code
+
+COPY coldfront-plugin-nese/skaffold/run_coldfront.sh /opt/venv/bin
+
+WORKDIR /code
+ENV PATH="/opt/venv/bin:$PATH"
+ENV DJANGO_SETTINGS_MODULE="local_settings"
+ENV DEBUG: "True"
+ENV PYTHONUNBUFFERED: "1"
+ENV PYTHONPATH: "/code"
+ENV NERC_ENV_PLUGIN_CONFIGS: 'coldfront_plugin_nese.config'
+
+USER 1001

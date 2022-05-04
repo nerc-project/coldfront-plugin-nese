@@ -363,7 +363,10 @@ def _execute_mc(*args, profile, timeout=60, input=None):
         f"{profile['endpoint']}"
     )
 
-    command = ("mc",) + args
+    # Note that we set the config dir location otherwise
+    # tries to frob files in /.mc which only works if
+    # container is executing as root. beedoo
+    command = ("mc", "--config-dir", "/tmp/.mc") + args
 
     try:
         subres = runsub(

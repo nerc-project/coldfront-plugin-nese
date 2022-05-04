@@ -8,12 +8,12 @@ resources:
 
 patches:
   # Use staging for certs
-  - patch: |-
-      - op: replace
-        path: /metadata/annotations/cert-manager.io~1cluster-issuer
-        value: letsencrypt-staging
-    target:
-      kind: Ingress
+  # - patch: |-
+  #     - op: replace
+  #       path: /metadata/annotations/cert-manager.io~1cluster-issuer
+  #       value: letsencrypt-staging
+  #   target:
+  #     kind: Ingress
 
   # Change ingress hostname (part1)
   - patch: |-
@@ -97,6 +97,8 @@ patches:
               - name: coldfront
                 image: culbert/coldfront-nerc:latest
                 imagePullPolicy: Never
+                command: ["run_coldfront.sh"]
+                args: ["coldfront"]
                 envFrom:
                 - configMapRef:
                     name: coldfront-configmap
@@ -130,29 +132,25 @@ patches:
 
   # Turn off scheduled  backups
   - patch: |-
-      apiVersion: postgres-operator.crunchydata.com/v1beta1
-      kind: PostgresCluster
-      metadata:
-        name: doesnotmatter
-      spec:
-        backups:
-          pgbackrest:
-            image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:centos8-2.35-0
-            global:
-              repo1-retention-full: "1"
-              repo1-retention-full-type: count
-            manual:
-              repoName: repo1
-              options:
-              - --type=full
-            repos:
-            - name: repo1
-              volume:
-                volumeClaimSpec:
-                  accessModes:
-                  - "ReadWriteOnce"
-                  resources:
-                    requests:
-                      storage: 5Gi
+      - op: replace
+        path: /spec/backups/pgbackrest
+        value: 
+          image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:centos8-2.35-0
+          global:
+            repo1-retention-full: "1"
+            repo1-retention-full-type: count
+          manual:
+            repoName: repo1
+            options:
+            - --type=full
+          repos:
+          - name: repo1
+            volume:
+              volumeClaimSpec:
+                accessModes:
+                - "ReadWriteOnce"
+                resources:
+                  requests:
+                    storage: 5Gi
     target:
       name: .*-postgres-ha

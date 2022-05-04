@@ -9,10 +9,14 @@ build:
   tagPolicy:
     sha256: {}
   artifacts:
+    - image: culbert/coldfront-nerc-base
+      context: ../../coldfront-nerc
+      docker:
+        dockerfile: Dockerfile
     - image: culbert/coldfront-nerc
       context: ../..
       docker:
-        dockerfile: coldfront-plugin-nese/skaffold/Dockerfile
+        dockerfile: coldfront-plugin-nese/skaffold/Dockerfile1
       sync:
         manual:
           - src: "coldfront-plugin-nese/src/**"
